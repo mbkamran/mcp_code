@@ -1,3 +1,9 @@
+"""
+This is 'Client' script responsible for creating and maintaining a 1:1 connection with server
+
+This client script is supposed to connect to server named 'server.py'
+"""
+
 from langchain_ollama import ChatOllama
 from langchain_core.messages import AIMessage
 from dotenv import load_dotenv
@@ -6,7 +12,6 @@ from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 from typing import List
 import asyncio
-# import nest_asyncio
 
 class SearchQuery(BaseModel):
     query_term: str = Field(description="A single search query which will be used to search for research papers based on user's input, could contain id also")
@@ -130,9 +135,3 @@ Tool call result:
     
                 await self.chat_loop()
 
-async def main():
-    chatbot = MCPClient()
-    await chatbot.connect_to_server_and_run()
-
-if __name__ == "__main__":
-    asyncio.run(main())

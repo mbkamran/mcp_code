@@ -1,3 +1,9 @@
+"""
+This is 'Server' script responsible for providing context to the client
+
+This server script provides prompt and tool context to the client
+"""
+
 import os
 import sys
 import json
