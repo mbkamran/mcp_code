@@ -6,11 +6,13 @@ This client script is supposed to connect to server named 'server.py'
 
 from langchain_ollama import ChatOllama
 from langchain_core.messages import AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 from typing import List
+import mcp.types as types
 import asyncio
 
 class SearchQuery(BaseModel):
@@ -23,33 +25,24 @@ class MCPClient:
         self.model = ChatOllama(model="llama3.2:3b", temperature=0)
         self.model_with_structured_output = self.model.with_structured_output(SearchQuery)
         self.available_tools: List[dict] = []
+        self.available_prompts: List[dict] = []
+
+    def _build_prompt(self, prompt: List[types.GetPromptResult], user_query: str):
+        system_prompt = prompt.messages[0].content.text
+        return [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_query)
+        ]
+
 
     async def _query_from_user(self, query):
         if not self.model_with_tools:
             self.model_with_tools = self.model.bind_tools(self.available_tools)
 
+        query_prompt = await self.session.get_prompt(name="query_creater")
+        print(self._build_prompt(query_prompt, query))
         response = self.model_with_structured_output.invoke(
-        [
-            {
-                "role": "system",
-                "content": """
-You are a helpful bot, whose task is to create a natural language search term for searching research paper for user.
-If the user mentions description of research paper, understand the description and based on that, output a single sentence search term.
-If the user asks to search paper based on id, you must EXPLICITLY tell in natural language form to search on that id, YOU MUST NOT OUTPUT ID ALONE!
-
-For example:
-user: Can you help me get papers that are published for knee othroscopy
-bot: Knee othroscopy papers
-
-user: Can you find paper with id abc123
-bot: Search paper with id abc123
-"""
-            },
-            {
-                "role": "user",
-                "content": query
-            }
-            ]
+            self._build_prompt(query_prompt, query)
         )
 
         print(response.query_term)
@@ -67,31 +60,16 @@ bot: Search paper with id abc123
 
                 print(f"Calling tool {tool_name} with args {tool_args}")
 
-                result = await self.session.call_tool(tool_name, arguments=tool_args)
-                print(result)
-                response = self.model.invoke(
-                [
-                    {
-                "role": "system",
-                "content": f"""
-You are a helpful bot whose task is give a natural language response to user based on output from the tool call and user question.
-The tool output will either be a list of ids for research paper or information about research papers.
-In both cases, you just need to rephrase user question and output Tool Call results.
-You must not output anything else apart from rephrasing user question and outputing tool call results.
+                results = await self.session.call_tool(tool_name, arguments=tool_args)
+                if results.content:
+                    answer_prompt = await self.session.get_prompt(name="answer_creater", arguments={"result": " ID: ".join([result.text for result in results.content])})
+                    response = self.model.invoke(
+                        self._build_prompt(answer_prompt, query)
+                    )
 
-
-Tool call result:
-{str(result.content)}
-"""
-                    },
-                    {
-                        "role": "user",
-                        "content": query
-                    }
-                    ]
-                )
-
-                print(f"LLM Output: \n{response.content}")
+                    print(f"LLM Output: \n{response.content}")
+                else:
+                    print("Nothing to output! All these pdfs already available.")
 
     async def chat_loop(self):
         """Run an interactive chat loop"""
@@ -122,16 +100,26 @@ Tool call result:
                 self.session = session
                 await self.session.initialize()
 
-                response = await self.session.list_tools()
+                response_tools = await self.session.list_tools()
+                response_prompts = await self.session.list_prompts()
                 
-                tools = response.tools
-                print("\nConnected to server with tools:", [tool.name for tool in tools])
+                tools = response_tools.tools
+                prompts = response_prompts.prompts
+
+                print("Connected to server!")
+                print("\nAvailable tools: ", [tool.name for tool in tools])
+                print("\nAvailable prompts: ", [prompt.name for prompt in prompts])
                 
                 self.available_tools = [{
                     "name": tool.name,
                     "description": tool.description,
                     "input_schema": tool.inputSchema
-                } for tool in response.tools]
+                } for tool in response_tools.tools]
     
+                self.available_prompts = [{
+                    "name": prompt.name,
+                    "description": prompt.description,
+                } for prompt in response_prompts.prompts]
+
                 await self.chat_loop()
 

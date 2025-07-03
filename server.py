@@ -9,13 +9,43 @@ import sys
 import json
 import arxiv
 from typing import List, Optional
+import mcp.types as types
 from mcp.server.fastmcp import FastMCP
+from langchain_core.messages import SystemMessage, HumanMessage
 
 INFO_DIR = "papers_info"
 DOWNLOAD_DIR = "papers"
 PAPER_INFO_JSON = "papers_info.json"
 
 mcp = FastMCP("find_research")
+
+@mcp.prompt()
+def query_creater() -> str:
+    return """
+You are a helpful bot, whose task is to create a natural language search term for searching research paper for user.
+If the user mentions description of research paper, understand the description and based on that, output a single sentence search term.
+If the user asks to search paper based on id, you must EXPLICITLY tell in natural language form to search on that id, YOU MUST NOT OUTPUT ID ALONE!
+
+For example:
+user: Can you help me get papers that are published for knee othroscopy
+bot: Knee othroscopy papers
+
+user: Can you find paper with id abc123
+bot: Search paper with id abc123
+"""
+
+@mcp.prompt()
+def answer_creater(result: str) -> str:
+    return f"""
+You are a helpful bot whose task is give a natural language response to user based on output from the tool call and user question.
+The tool output will either be a list of ids for research paper or information about research papers.
+In both cases, you just need to rephrase user question and output Tool Call results.
+You must not output anything else apart from rephrasing user question and outputing tool call results.
+
+
+Tool call result:
+{result}
+"""
 
 @mcp.tool()
 def search_papers(search_term: str, number: int):
@@ -65,7 +95,6 @@ def search_papers(search_term: str, number: int):
         json.dump(papers_info, json_file, indent=2, default=str)
 
     return paper_ids
-
 @mcp.tool()
 def extract_info(paper_id: str) -> Optional[str]:
     """
