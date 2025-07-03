@@ -47,10 +47,19 @@ Tool call result:
 {result}
 """
 
+@mcp.prompt()
+def tool_creater() -> str:
+    return """
+You are a bot whose task is to analyze user input query and output an approriate tool.
+You must analyze what each tool's inputs, outputs, and description VERY CLOSELY is before making a decision, and you must analyze it along with user input.
+Once you have judged which tool the user intends to run, take approriate decision
+"""
+
 @mcp.tool()
 def search_papers(search_term: str, number: int):
     """
     Searches and downloads relevant papers against a search term from ArXiv
+    Called explicitly when the user wants to find research papers against a search term
 
     Args:
         search_term (str): search term to find papers against
@@ -98,7 +107,8 @@ def search_papers(search_term: str, number: int):
 @mcp.tool()
 def extract_info(paper_id: str) -> Optional[str]:
     """
-    Extract information for a research paper by id
+    Extract information for a research paper by id.
+    Called when the user wants to explicitly search against an id instead of a search term
 
     Args:
         id (str): id of the research paper

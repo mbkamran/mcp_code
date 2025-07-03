@@ -22,7 +22,7 @@ class MCPClient:
     def __init__(self):
         self.session: ClientSession = None
         self.model_with_tools = None
-        self.model = ChatOllama(model="llama3.2:3b", temperature=0)
+        self.model = ChatOllama(model="qwen2.5:3b", temperature=0)
         self.model_with_structured_output = self.model.with_structured_output(SearchQuery)
         self.available_tools: List[dict] = []
         self.available_prompts: List[dict] = []
@@ -33,7 +33,6 @@ class MCPClient:
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_query)
         ]
-
 
     async def _query_from_user(self, query):
         if not self.model_with_tools:
@@ -47,8 +46,9 @@ class MCPClient:
 
         print(response.query_term)
 
+        tool_prompt = await self.session.get_prompt(name="tool_creater")
         answer = self.model_with_tools.invoke(
-            response.query_term
+            self._build_prompt(tool_prompt, response.query_term)
         )
 
         print(answer)
